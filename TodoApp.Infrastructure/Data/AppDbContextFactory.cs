@@ -10,7 +10,8 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
         optionsBuilder.UseNpgsql(
             "Host=localhost;Database=TodoApp;Username=postgres;Password=postgres",
-            npgsql => npgsql.MigrationsAssembly("TodoApp.Infrastructure"));
+            npgsql => npgsql.MigrationsAssembly("TodoApp.Infrastructure"))
+        .UseSnakeCaseNamingConvention();
 
         return new AppDbContext(optionsBuilder.Options);
     }

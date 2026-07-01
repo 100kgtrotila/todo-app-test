@@ -17,6 +17,11 @@ public sealed class CategoryRepository(AppDbContext context) : ICategoryReposito
         await context.Categories
             .FirstOrDefaultAsync(c => c.Id == id, ct);
 
+    public async Task<List<Category>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default) =>
+        await context.Categories
+            .Where(c => ids.Contains(c.Id))
+            .ToListAsync(ct);
+
     public async Task<Category> CreateAsync(Category category, CancellationToken ct = default)
     {
         context.Categories.Add(category);

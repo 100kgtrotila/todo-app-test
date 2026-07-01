@@ -14,7 +14,7 @@ public sealed class TaskRepository(AppDbContext context) : ITaskRepository
         CancellationToken ct = default)
     {
         var query = context.Tasks
-            .Include(t => t.Category)
+            .Include(t => t.Categories)
             .Where(t => t.UserId == userId);
 
         if (!string.IsNullOrWhiteSpace(queryParams.Search))
@@ -25,8 +25,8 @@ public sealed class TaskRepository(AppDbContext context) : ITaskRepository
                 (t.Description != null && EF.Functions.ILike(t.Description, pattern)));
         }
 
-        if (queryParams.CategoryId.HasValue)
-            query = query.Where(t => t.CategoryId == queryParams.CategoryId);
+        if (queryParams.CategoryIds?.Any() == true)
+            query = query.Where(t => t.Categories.Any(c => queryParams.CategoryIds.Contains(c.Id)));
 
         if (queryParams.IsCompleted.HasValue)
             query = query.Where(t => t.IsCompleted == queryParams.IsCompleted);
@@ -57,7 +57,7 @@ public sealed class TaskRepository(AppDbContext context) : ITaskRepository
     public Task<TaskItem?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         context.Tasks
             .AsNoTracking()
-            .Include(t => t.Category)
+            .Include(t => t.Categories)
             .FirstOrDefaultAsync(t => t.Id == id, ct);
 
     public async Task<TaskItem> CreateAsync(TaskItem task, CancellationToken ct = default)

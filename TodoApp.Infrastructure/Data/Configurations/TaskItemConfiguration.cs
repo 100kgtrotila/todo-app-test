@@ -21,21 +21,14 @@ public sealed class TaskItemConfiguration : IEntityTypeConfiguration<TaskItem>
             .IsRequired()
             .HasDefaultValue(false);
 
-        builder.Property(t => t.CreatedAt)
-            .IsRequired();
-
-        builder.Property(t => t.UpdatedAt)
-            .IsRequired();
 
         builder.HasOne(t => t.User)
             .WithMany(u => u.Tasks)
             .HasForeignKey(t => t.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(t => t.Category)
+        builder.HasMany(t => t.Categories)
             .WithMany(c => c.Tasks)
-            .HasForeignKey(t => t.CategoryId)
-            .IsRequired(false)
-            .OnDelete(DeleteBehavior.SetNull);
+            .UsingEntity(j => j.ToTable("task_categories"));
     }
 }
