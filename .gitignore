@@ -1,0 +1,63 @@
+## Core Build Outputs
+[Bb]in/
+[Oo]bj/
+[Log]s/
+
+## Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.patch
+*.diff
+
+## Rider & IntelliJ
+.idea/
+
+## VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+
+## NuGet / Package Restore
+*.nuget.props
+*.nuget.targets
+project.lock.json
+project.assets.json
+
+## Publish & Deployment Outputs
+[Pp]ublish/
+/publish/
+deploy/
+
+## Test & Coverage Outputs
+TestResults/
+*.clog
+/artifacts/
+
+## Databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.mdf
+*.ldf
+
+## Local & Sensitive Configurations
+# Standard appsettings are committed, but local overrides should be ignored
+appsettings.local.json
+*.local.json
+.env
+.env.local
+.env.*.local
+
+## Operating System Metadata
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store

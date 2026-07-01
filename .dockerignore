@@ -1,0 +1,45 @@
+# Build artifacts
+**/bin/
+**/obj/
+**/publish/
+
+# IDE files
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Test results
+**/TestResults/
+
+# EF migrations (include source, exclude local DB files)
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+logs/
+
+# Environment-specific secrets
+.env
+.env.*
+!.env.example
+
+# git
+.git/
+.gitignore
+
+# Docker files (no need to include themselves in context)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Docs
+README.md
+*.md
+docs/
+
+# OS files
+.DS_Store
+Thumbs.db
