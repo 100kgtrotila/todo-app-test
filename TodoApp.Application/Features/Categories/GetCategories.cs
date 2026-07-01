@@ -1,16 +1,17 @@
+using ErrorOr;
 using MediatR;
 using TodoApp.Application.Interfaces;
 
 namespace TodoApp.Application.Features.Categories;
 
-public record GetCategoriesQuery(Guid UserId) : IRequest<List<CategoryDto>>;
+public record GetCategoriesQuery(Guid UserId) : IRequest<ErrorOr<List<CategoryDto>>>;
 
 public sealed class GetCategoriesQueryHandler(ICategoryRepository categoryRepository)
-    : IRequestHandler<GetCategoriesQuery, List<CategoryDto>>
+    : IRequestHandler<GetCategoriesQuery, ErrorOr<List<CategoryDto>>>
 {
-    public async Task<List<CategoryDto>> Handle(GetCategoriesQuery request, CancellationToken cancellationToken)
+    public async Task<ErrorOr<List<CategoryDto>>> Handle(GetCategoriesQuery request, CancellationToken cancellationToken)
     {
         var categories = await categoryRepository.GetByUserIdAsync(request.UserId, cancellationToken);
-        return categories.Select(c => new CategoryDto(c.Id, c.Name, c.Color)).ToList();
+        return categories.ConvertAll(c => new CategoryDto(c.Id, c.Name, c.Color));
     }
 }

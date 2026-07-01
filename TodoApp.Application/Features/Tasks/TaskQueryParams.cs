@@ -10,7 +10,7 @@ public class TaskQueryParams
         set => _pageSize = Math.Clamp(value, 1, 100);
     }
     public string? Search { get; set; }
-    public Guid? CategoryId { get; set; }
+    public List<Guid>? CategoryIds { get; set; }
     public bool? IsCompleted { get; set; }
     public string? SortBy { get; set; } = "createdat";
     public bool SortDescending { get; set; } = true;

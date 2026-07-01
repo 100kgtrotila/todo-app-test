@@ -1,24 +1,26 @@
+using ErrorOr;
 using MediatR;
-using TodoApp.Application.Common;
+using TodoApp.Application.Common.Errors;
 using TodoApp.Application.Interfaces;
 
 namespace TodoApp.Application.Features.Categories;
 
-public record DeleteCategoryCommand(Guid Id, Guid UserId) : IRequest;
+public record DeleteCategoryCommand(Guid Id, Guid UserId) : IRequest<ErrorOr<Deleted>>;
 
 public sealed class DeleteCategoryCommandHandler(ICategoryRepository categoryRepository)
-    : IRequestHandler<DeleteCategoryCommand>
+    : IRequestHandler<DeleteCategoryCommand, ErrorOr<Deleted>>
 {
-    public async Task Handle(DeleteCategoryCommand request, CancellationToken cancellationToken)
+    public async Task<ErrorOr<Deleted>> Handle(DeleteCategoryCommand request, CancellationToken cancellationToken)
     {
-        var category = await categoryRepository.GetByIdAsync(request.Id, cancellationToken)
-            ?? throw new ServiceException(ServiceErrorType.NotFound, $"Category {request.Id} not found.");
+        var category = await categoryRepository.GetByIdAsync(request.Id, cancellationToken);
+        if (category is null)
+            return Errors.Categories.NotFound(request.Id);
 
         if (category.UserId != request.UserId)
-            throw new ServiceException(ServiceErrorType.Forbidden, "You do not own this category.");
+            return Errors.Categories.ForbiddenAccess;
 
-        // EF is configured with OnDelete(SetNull) for TaskItem.CategoryId,
-        // so associated tasks remain with CategoryId = null.
+        // EF automatically deletes rows in the task_categories join table
         await categoryRepository.DeleteAsync(category, cancellationToken);
+        return Result.Deleted;
     }
 }

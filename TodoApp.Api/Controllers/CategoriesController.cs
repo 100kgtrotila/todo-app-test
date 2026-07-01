@@ -18,7 +18,9 @@ public sealed class CategoriesController(ISender sender) : ControllerBase
     {
         var userId = User.GetUserId();
         var result = await sender.Send(new GetCategoriesQuery(userId), ct);
-        return Ok(result);
+        return result.Match<IActionResult>(
+            value => Ok(value),
+            errors => errors.ToProblem(this));
     }
 
     /// <summary>Create a new category for the authenticated user.</summary>
@@ -31,7 +33,9 @@ public sealed class CategoriesController(ISender sender) : ControllerBase
     {
         var userId = User.GetUserId();
         var result = await sender.Send(new CreateCategoryCommand(request.Name, request.Color, userId), ct);
-        return StatusCode(StatusCodes.Status201Created, result);
+        return result.Match<IActionResult>(
+            value => StatusCode(StatusCodes.Status201Created, value),
+            errors => errors.ToProblem(this));
     }
 
     /// <summary>Update an existing category. Only the owner can update.</summary>
@@ -47,7 +51,9 @@ public sealed class CategoriesController(ISender sender) : ControllerBase
     {
         var userId = User.GetUserId();
         var result = await sender.Send(new UpdateCategoryCommand(id, request.Name, request.Color, userId), ct);
-        return Ok(result);
+        return result.Match<IActionResult>(
+            value => Ok(value),
+            errors => errors.ToProblem(this));
     }
 
     /// <summary>
@@ -60,7 +66,9 @@ public sealed class CategoriesController(ISender sender) : ControllerBase
     public async Task<IActionResult> DeleteCategory(Guid id, CancellationToken ct)
     {
         var userId = User.GetUserId();
-        await sender.Send(new DeleteCategoryCommand(id, userId), ct);
-        return NoContent();
+        var result = await sender.Send(new DeleteCategoryCommand(id, userId), ct);
+        return result.Match<IActionResult>(
+            _ => NoContent(),
+            errors => errors.ToProblem(this));
     }
 }

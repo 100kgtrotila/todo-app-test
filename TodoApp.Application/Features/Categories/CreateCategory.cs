@@ -1,15 +1,16 @@
+using ErrorOr;
 using MediatR;
 using TodoApp.Application.Interfaces;
 using TodoApp.Domain.Entities;
 
 namespace TodoApp.Application.Features.Categories;
 
-public record CreateCategoryCommand(string Name, string? Color, Guid UserId) : IRequest<CategoryDto>;
+public record CreateCategoryCommand(string Name, string? Color, Guid UserId) : IRequest<ErrorOr<CategoryDto>>;
 
 public sealed class CreateCategoryCommandHandler(ICategoryRepository categoryRepository)
-    : IRequestHandler<CreateCategoryCommand, CategoryDto>
+    : IRequestHandler<CreateCategoryCommand, ErrorOr<CategoryDto>>
 {
-    public async Task<CategoryDto> Handle(CreateCategoryCommand request, CancellationToken cancellationToken)
+    public async Task<ErrorOr<CategoryDto>> Handle(CreateCategoryCommand request, CancellationToken cancellationToken)
     {
         var category = new Category
         {

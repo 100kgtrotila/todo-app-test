@@ -1,21 +1,23 @@
+using ErrorOr;
 using MediatR;
-using TodoApp.Application.Common;
+using TodoApp.Application.Common.Errors;
 using TodoApp.Application.Interfaces;
 
 namespace TodoApp.Application.Features.Categories;
 
-public record UpdateCategoryCommand(Guid Id, string Name, string? Color, Guid UserId) : IRequest<CategoryDto>;
+public record UpdateCategoryCommand(Guid Id, string Name, string? Color, Guid UserId) : IRequest<ErrorOr<CategoryDto>>;
 
 public sealed class UpdateCategoryCommandHandler(ICategoryRepository categoryRepository)
-    : IRequestHandler<UpdateCategoryCommand, CategoryDto>
+    : IRequestHandler<UpdateCategoryCommand, ErrorOr<CategoryDto>>
 {
-    public async Task<CategoryDto> Handle(UpdateCategoryCommand request, CancellationToken cancellationToken)
+    public async Task<ErrorOr<CategoryDto>> Handle(UpdateCategoryCommand request, CancellationToken cancellationToken)
     {
-        var category = await categoryRepository.GetByIdAsync(request.Id, cancellationToken)
-            ?? throw new ServiceException(ServiceErrorType.NotFound, $"Category {request.Id} not found.");
+        var category = await categoryRepository.GetByIdAsync(request.Id, cancellationToken);
+        if (category is null)
+            return Errors.Categories.NotFound(request.Id);
 
         if (category.UserId != request.UserId)
-            throw new ServiceException(ServiceErrorType.Forbidden, "You do not own this category.");
+            return Errors.Categories.ForbiddenAccess;
 
         category.Name = request.Name;
         category.Color = request.Color;

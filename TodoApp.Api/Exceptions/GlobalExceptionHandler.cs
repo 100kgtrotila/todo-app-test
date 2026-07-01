@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using TodoApp.Application.Common;
 
 namespace TodoApp.Api.Exceptions;
 
@@ -12,23 +11,10 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
         Exception exception,
         CancellationToken cancellationToken)
     {
-        var (statusCode, title) = exception switch
-        {
-            ServiceException se => se.ErrorType switch
-            {
-                ServiceErrorType.NotFound   => (StatusCodes.Status404NotFound,   "Not Found"),
-                ServiceErrorType.Forbidden  => (StatusCodes.Status403Forbidden,  "Forbidden"),
-                ServiceErrorType.Conflict   => (StatusCodes.Status409Conflict,   "Conflict"),
-                ServiceErrorType.Validation => (StatusCodes.Status400BadRequest, "Bad Request"),
-                _                           => (StatusCodes.Status500InternalServerError, "Internal Server Error")
-            },
-            _ => (StatusCodes.Status500InternalServerError, "Internal Server Error")
-        };
+        var statusCode = StatusCodes.Status500InternalServerError;
+        var title = "Internal Server Error";
 
-        if (exception is ServiceException)
-            logger.LogInformation("Business rule violation: {Message}", exception.Message);
-        else
-            logger.LogError(exception, "Unhandled exception: {Message}", exception.Message);
+        logger.LogError(exception, "Unhandled exception: {Message}", exception.Message);
 
         var problemDetails = new ProblemDetails
         {

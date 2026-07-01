@@ -1,22 +1,23 @@
+using ErrorOr;
 using MediatR;
-using TodoApp.Application.Common;
+using TodoApp.Application.Common.Errors;
 using TodoApp.Application.Interfaces;
 using TodoApp.Domain.Entities;
 
 namespace TodoApp.Application.Features.Auth;
 
-public record RegisterCommand(string Email, string Password) : IRequest<AuthResponse>;
+public record RegisterCommand(string Email, string Password) : IRequest<ErrorOr<AuthResponse>>;
 
 public sealed class RegisterCommandHandler(
     IUserRepository userRepository,
     IPasswordHasher passwordHasher,
-    ITokenService tokenService) : IRequestHandler<RegisterCommand, AuthResponse>
+    ITokenService tokenService) : IRequestHandler<RegisterCommand, ErrorOr<AuthResponse>>
 {
-    public async Task<AuthResponse> Handle(RegisterCommand request, CancellationToken cancellationToken)
+    public async Task<ErrorOr<AuthResponse>> Handle(RegisterCommand request, CancellationToken cancellationToken)
     {
         var alreadyExists = await userRepository.ExistsByEmailAsync(request.Email, cancellationToken);
         if (alreadyExists)
-            throw new ServiceException(ServiceErrorType.Conflict, $"Email '{request.Email}' is already registered.");
+            return Errors.Auth.DuplicateEmail(request.Email);
 
         var user = new User
         {

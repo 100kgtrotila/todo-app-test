@@ -12,9 +12,6 @@ namespace TodoApp.Api.Controllers;
 [Authorize]
 public sealed class TasksController(ISender sender) : ControllerBase
 {
-    /// <summary>
-    /// List tasks with optional pagination, search, category filter, completion filter, and sorting.
-    /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<TaskDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetTasks(
@@ -23,10 +20,11 @@ public sealed class TasksController(ISender sender) : ControllerBase
     {
         var userId = User.GetUserId();
         var result = await sender.Send(new GetTasksQuery(userId, queryParams), ct);
-        return Ok(result);
+        return result.Match<IActionResult>(
+            value => Ok(value),
+            errors => errors.ToProblem(this));
     }
 
-    /// <summary>Get a single task by ID. Only the owner can access it.</summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(TaskDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -35,10 +33,11 @@ public sealed class TasksController(ISender sender) : ControllerBase
     {
         var userId = User.GetUserId();
         var result = await sender.Send(new GetTaskByIdQuery(id, userId), ct);
-        return Ok(result);
+        return result.Match<IActionResult>(
+            value => Ok(value),
+            errors => errors.ToProblem(this));
     }
 
-    /// <summary>Create a new task for the authenticated user.</summary>
     [HttpPost]
     [ProducesResponseType(typeof(TaskDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -48,11 +47,12 @@ public sealed class TasksController(ISender sender) : ControllerBase
     {
         var userId = User.GetUserId();
         var result = await sender.Send(
-            new CreateTaskCommand(request.Title, request.Description, request.DueDate, request.CategoryId, userId), ct);
-        return CreatedAtAction(nameof(GetTask), new { id = result.Id }, result);
+            new CreateTaskCommand(request.Title, request.Description, request.DueDate, request.CategoryIds, userId), ct);
+        return result.Match<IActionResult>(
+            value => CreatedAtAction(nameof(GetTask), new { id = value.Id }, value),
+            errors => errors.ToProblem(this));
     }
 
-    /// <summary>Fully update a task (all fields). Only the owner can update.</summary>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(TaskDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -66,13 +66,12 @@ public sealed class TasksController(ISender sender) : ControllerBase
         var userId = User.GetUserId();
         var result = await sender.Send(
             new UpdateTaskCommand(id, request.Title, request.Description, request.IsCompleted,
-                request.DueDate, request.CategoryId, userId), ct);
-        return Ok(result);
+                request.DueDate, request.CategoryIds, userId), ct);
+        return result.Match<IActionResult>(
+            value => Ok(value),
+            errors => errors.ToProblem(this));
     }
 
-    /// <summary>
-    /// Lightweight PATCH to toggle task completion status without sending the full task body.
-    /// </summary>
     [HttpPatch("{id:guid}/status")]
     [ProducesResponseType(typeof(TaskDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -85,10 +84,11 @@ public sealed class TasksController(ISender sender) : ControllerBase
     {
         var userId = User.GetUserId();
         var result = await sender.Send(new UpdateTaskStatusCommand(id, request.IsCompleted, userId), ct);
-        return Ok(result);
+        return result.Match<IActionResult>(
+            value => Ok(value),
+            errors => errors.ToProblem(this));
     }
 
-    /// <summary>Delete a task. Only the owner can delete.</summary>
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -96,7 +96,9 @@ public sealed class TasksController(ISender sender) : ControllerBase
     public async Task<IActionResult> DeleteTask(Guid id, CancellationToken ct)
     {
         var userId = User.GetUserId();
-        await sender.Send(new DeleteTaskCommand(id, userId), ct);
-        return NoContent();
+        var result = await sender.Send(new DeleteTaskCommand(id, userId), ct);
+        return result.Match<IActionResult>(
+            _ => NoContent(),
+            errors => errors.ToProblem(this));
     }
 }
