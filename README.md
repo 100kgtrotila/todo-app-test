@@ -219,22 +219,16 @@ dotnet ef migrations script \
 ## Auth Flow
 
 1. **Register** → `POST /api/auth/register` with `{email, password}` → receives JWT
-2. **Login** → `POST /api/auth/login` with `{email, password}` → receives JWT
+2. **Login** → `POST /api/auth/login` with `{email, password}` → receives JWT access token in body, and `HttpOnly` cookie with `refreshToken`.
 3. **Use JWT** → Add `Authorization: Bearer <token>` header to all protected requests
-4. **Logout** → `POST /api/auth/logout` (stateless; see [Logout Limitation](#logout--stateless-jwt))
+4. **Refresh Token** → `POST /api/auth/refresh` → reads `refreshToken` cookie, rotates it, and returns a new JWT access token.
+5. **Logout** → `POST /api/auth/logout` → revokes the refresh token in the DB and clears the cookie.
 
-### Logout — Stateless JWT
-
-JWT tokens are self-contained and remain valid until expiry. The current logout endpoint returns a success response but does not invalidate the token server-side.
-
-**Why:** Implementing token blacklisting requires shared state (Redis or DB table), which was out of scope for this MVP.
-
-**For production:** Implement one of:
-- **Short-lived tokens + refresh tokens** (refresh stored in DB, invalidatable)
-- **Redis token blacklist** (check `jti` claim on each request)
-- **Token versioning** (store `tokenVersion` on User, increment on logout)
-
-The `jti` claim is already included in every token for future blacklist support.
+### Secure Auth Setup
+- **Short-Lived JWT:** Access tokens expire quickly (e.g. 15 minutes) to minimize risk.
+- **Refresh Token Rotation:** Every refresh invalidates the old token and issues a new one.
+- **Reuse Detection:** If a revoked/expired refresh token is used, the entire token family is revoked to prevent session hijacking.
+- **HttpOnly Cookies:** Refresh tokens are transported via cookies, protecting against XSS attacks.
 
 ---
 
@@ -249,7 +243,7 @@ Supports the following query parameters:
 | `page` | int | `1` | Page number (1-based) |
 | `pageSize` | int | `10` | Items per page (max 100, auto-clamped) |
 | `search` | string | — | Case-insensitive search in title + description |
-| `categoryId` | guid | — | Filter by category |
+| `categoryIds` | [guid] | — | Filter by categories (any match) |
 | `isCompleted` | bool | — | Filter by completion status |
 | `sortBy` | string | `createdat` | Sort field: `createdat`, `duedate`, `title` |
 | `sortDescending` | bool | `true` | Sort direction |
@@ -274,8 +268,9 @@ Supports the following query parameters:
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | POST | `/api/auth/register` | ❌ | Register new user |
-| POST | `/api/auth/login` | ❌ | Login, get JWT |
-| POST | `/api/auth/logout` | ❌ | Stateless logout |
+| POST | `/api/auth/login` | ❌ | Login, get JWT + set RT cookie |
+| POST | `/api/auth/refresh` | ❌ | Rotate refresh token, get new JWT |
+| POST | `/api/auth/logout` | ❌ | Revoke RT, clear cookie |
 
 ### Categories (`/api/categories`)
 | Method | Path | Auth | Description |
@@ -283,7 +278,7 @@ Supports the following query parameters:
 | GET | `/api/categories` | ✅ | List own categories |
 | POST | `/api/categories` | ✅ | Create category |
 | PUT | `/api/categories/{id}` | ✅ | Update own category |
-| DELETE | `/api/categories/{id}` | ✅ | Delete category (tasks preserved, CategoryId → null) |
+| DELETE | `/api/categories/{id}` | ✅ | Delete category (join table rows removed) |
 
 ### Tasks (`/api/tasks`)
 | Method | Path | Auth | Description |
@@ -316,10 +311,19 @@ curl -X POST http://localhost:8080/api/auth/register \
 ### 2. Login (save the token)
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+# Since the server sets an HttpOnly cookie for the refresh token, you may want to capture cookies using curl:
+curl -c cookies.txt -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email": "alice@example.com", "password": "SecurePass123"}' \
-  | python -c "import sys,json; print(json.load(sys.stdin)['token'])")
+  -d '{"email": "alice@example.com", "password": "SecurePass123"}'
+```
+
+The response body will contain the `token` (Access Token) to be used for authorized requests.
+
+### 2a. Refresh Token
+
+```bash
+# Uses the saved cookie to obtain a new access token
+curl -b cookies.txt -c cookies.txt -X POST http://localhost:8080/api/auth/refresh
 ```
 
 Or on Windows PowerShell:
@@ -349,7 +353,7 @@ curl -X POST http://localhost:8080/api/tasks \
     "title": "Finish the API",
     "description": "Complete the backend for the interview",
     "dueDate": "2026-07-10T00:00:00Z",
-    "categoryId": "<CATEGORY_ID_HERE>"
+    "categoryIds": ["<CATEGORY_ID_1_HERE>", "<CATEGORY_ID_2_HERE>"]
   }'
 ```
 
@@ -380,7 +384,7 @@ curl -X PUT "http://localhost:8080/api/tasks/<TASK_ID>" \
     "description": "Almost done!",
     "isCompleted": false,
     "dueDate": "2026-07-15T00:00:00Z",
-    "categoryId": null
+    "categoryIds": []
   }'
 ```
 
@@ -396,6 +400,27 @@ curl -X DELETE "http://localhost:8080/api/tasks/<TASK_ID>" \
 ```bash
 curl http://localhost:8080/health
 ```
+
+---
+
+## Error Handling and Result Pattern
+
+The application uses the **Result Pattern** with the `ErrorOr` library to handle expected business failures without using exceptions.
+
+- **`ServiceException` is removed.** Business logic rules do not throw exceptions.
+- Handlers return `ErrorOr<T>` containing either the result or a list of `Error` instances.
+- Errors are centralized by feature in `TodoApp.Application/Common/Errors/` (e.g. `Errors.Tasks.NotFound(id)`).
+- Controllers use `.Match(...)` to map the result or delegate errors to `ErrorOrExtensions.ToProblem(this)`, ensuring consistent, strongly-typed RFC 7807 Problem Details.
+
+### Status Code Mapping
+
+| ErrorOr Type | HTTP Status | Use Case |
+|---|---|---|
+| `Validation` | 400 Bad Request | Invalid credentials, DTO validation failures |
+| `Forbidden` | 403 Forbidden | Ownership check failures |
+| `NotFound` | 404 Not Found | Entity not found by ID |
+| `Conflict` | 409 Conflict | Duplicate email on registration |
+| `Unexpected` | 500 Internal Server Error | GlobalExceptionHandler fallback |
 
 ---
 
@@ -422,8 +447,9 @@ The minimum key length is 32 characters (enforced at startup). Use a cryptograph
 | DB | PostgreSQL (not SQL Server) | ARM64 compatible, lighter for Docker, allowed by PRD |
 | CQRS | MediatR vertical slices | Avoids God Services, each handler independently testable |
 | Services layer | Handlers are services | PRD's "4 layers" = Controllers / Services(Handlers) / Interfaces / Data |
-| Auth | Stateless JWT only | Refresh tokens + blacklist out of scope for MVP |
-| Cascade delete | Category → Task: SetNull | Prevents accidental data loss when removing a category |
+| Auth | Refresh Tokens, Cookie transport | Production-ready rotation and family revocation implemented |
+| DB Naming | Snake Case Convention | PostgreSQL standard (`task_categories`, `created_at`) |
+| Cascade delete | Category → Task: Join Table | Deleting a category automatically drops its mapping in the join table without deleting tasks |
 | No tests | Not included | Interview time constraint; unit tests for handler logic are the recommended next step |
 | Swagger at `/` | Enabled in Development | Convenient for demo; restrict in production |
 | Migration on startup | `MigrateAsync()` | One-command Docker startup convenience; see production notes |
