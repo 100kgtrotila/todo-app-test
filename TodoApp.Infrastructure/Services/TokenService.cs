@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using TodoApp.Application.Interfaces;
 using TodoApp.Domain.Entities;
+using TodoApp.Application.Common.Models;
 
 namespace TodoApp.Infrastructure.Services;
 
@@ -28,7 +29,7 @@ public sealed class TokenService(IOptions<JwtSettings> options) : ITokenService
             issuer: _settings.Issuer,
             audience: _settings.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(_settings.ExpirationMinutes),
+            expires: DateTime.UtcNow.AddMinutes(_settings.AccessTokenMinutes),
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);
